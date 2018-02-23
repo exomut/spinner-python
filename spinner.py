@@ -10,7 +10,11 @@ A = Action
 class Board (SpriteNode):
 	def __init__(self, *args, **kwargs):
 		super(Board, self).__init__(*args, **kwargs)
-		self.textures = ['./images/board_four.png', './images/board_six.png', './images/board_ten.png']
+		self.textures = [
+			'./images/board_four.png',
+			'./images/board_six.png',
+			'./images/board_ten.png'
+			]
 		self.current_board = 0
 		self.set_board_texture()
 		
@@ -33,7 +37,14 @@ class Spinner (SpriteNode):
 		self.set_spinner_texture()
 	
 	def spin(self):
-		self.run_action(Action.rotate_by(random.randint(1,10)+100, 3, TIMING_EASE_OUT))
+		sound.play_effect('game:Woosh_1')
+		self.run_action(Action.sequence(
+										Action.rotate_by(random.randint(100,300), 3, TIMING_EASE_OUT),
+										Action.call(self.finish_spin)
+										))
+										
+	def finish_spin(self):
+		sound.play_effect('ui:switch2')
 		
 	def change_spinner(self):
 		if (self.current_spinner < len(self.textures)-1):
@@ -61,29 +72,36 @@ class Button (SpriteNode):
 	def press_button(self):
 		self.texture = Texture(self.texture_pressed)
 		
-	def run_on_touch(self, touch):
+	def touch_check(self, touch):
 		if(helper.is_in_rectangle(touch, self)):
 			self.press_button()
+			sound.play_effect('8ve:8ve-tap-warm')
 			return True
 		return False
 
 
 class Game (Scene):
 	def setup(self):
+		
 		# Setup up that shader for cool effects
 		self.effect_node = EffectNode(parent=self)
 		with open('filters.fsh') as f:
 			self.effect_node.shader = Shader(f.read())
 		self.effect_node.crop_rect = self.bounds
+		# Set 'u_style' to '0' for no effects. 1 - 4 for effects
 		self.effect_node.shader.set_uniform('u_style', 0)
 		
+		# Background image and scaling to match the screen in landscape mode
 		self.background = SpriteNode(
 			'./images/background.png', parent=self.effect_node)
 		self.background.anchor_point = (0, 0)
+		self.background.scale = self.size.w / self.background.size.w
 		
-		self.board = Board(parent=self.background)
-		self.board.scale = 1
+		# Board and spinner setup and scaling
+		self.board = Board(parent=self.effect_node)
 		self.board.position = (self.size.w/2, self.size.h/2)
+		self.board.scale = self.size.h / self.board.size.h
+		
 		self.spinner = Spinner(parent=self.board)
 		
 		# Menu Buttons
@@ -93,7 +111,7 @@ class Game (Scene):
 			)
 		self.change_board = Button(
 			'./images/change_board_up.png',
-			'./images/change_board_down.png', (800, 0), parent=self
+			'./images/change_board_down.png', (self.size.w-100, 0), parent=self
 			)
 
 	def did_change_size(self):
@@ -103,13 +121,12 @@ class Game (Scene):
 		pass
 	
 	def touch_began(self, touch):
-		if (self.change_spinner.run_on_touch(touch)):
+		if (self.change_spinner.touch_check(touch)):
 			self.spinner.change_spinner()
-		elif (self.change_board.run_on_touch(touch)):
+		elif (self.change_board.touch_check(touch)):
 			self.board.change_board()
 		else:
 			self.spinner.spin()
-			sound.play_effect('game:Woosh_2')
 			
 	def touch_moved(self, touch):
 		pass
@@ -117,7 +134,6 @@ class Game (Scene):
 	def touch_ended(self, touch):
 		self.change_spinner.release_button()
 		self.change_board.release_button()
-		self.spinner.spin_speed = 0
 
 if __name__ == '__main__':
-	run(Game(), show_fps=True)
+	run(Game(), show_fps=False, orientation=LANDSCAPE)
